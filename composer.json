@@ -1,5 +1,5 @@
 {
-    "name": "fresh/vich-uploader-serialization-bundle",
+    "name": "rithlock/vich-uploader-serialization-bundle",
     "description": "Provides integration between VichUploaderBundle and JMSSerializerBundle.",
     "keywords": ["bundle", "symfony", "VichUploaderBundle", "JMSSerializerBundle", "serialization", "file upload", "upload", "integration"],
     "homepage": "https://github.com/fre5h/VichUploaderSerializationBundle",
