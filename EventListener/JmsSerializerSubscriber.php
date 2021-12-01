@@ -13,8 +13,8 @@ declare(strict_types=1);
 namespace Fresh\VichUploaderSerializationBundle\EventListener;
 
 use Doctrine\Common\Annotations\Reader;
-use Doctrine\Common\Persistence\Proxy;
 use Doctrine\Common\Util\ClassUtils;
+use Doctrine\Persistence\Proxy;
 use Fresh\VichUploaderSerializationBundle\Annotation\VichSerializableClass;
 use Fresh\VichUploaderSerializationBundle\Annotation\VichSerializableField;
 use Fresh\VichUploaderSerializationBundle\Exception\IncompatibleUploadableAndSerializableFieldAnnotationException;
@@ -35,7 +35,9 @@ use Vich\UploaderBundle\Storage\StorageInterface;
  */
 class JmsSerializerSubscriber implements EventSubscriberInterface
 {
-    public const MONGO_PROXY_MARKER_ODM_V3 = '__PM__';
+    private const HTTP_PORT = 80;
+
+    private const HTTPS_PORT = 443;
 
     /** @var StorageInterface */
     private $storage;
@@ -52,7 +54,7 @@ class JmsSerializerSubscriber implements EventSubscriberInterface
     /** @var LoggerInterface */
     private $logger;
 
-    /** @var array */
+    /** @var mixed[] */
     private $serializedObjects = [];
 
     /**
@@ -72,14 +74,12 @@ class JmsSerializerSubscriber implements EventSubscriberInterface
     }
 
     /**
-     * @return array
+     * @return iterable|array[]
      */
-    public static function getSubscribedEvents(): array
+    public static function getSubscribedEvents(): iterable
     {
-        return [
-            ['event' => Events::PRE_SERIALIZE, 'method' => 'onPreSerialize'],
-            ['event' => Events::POST_SERIALIZE, 'method' => 'onPostSerialize'],
-        ];
+        yield ['event' => Events::PRE_SERIALIZE, 'method' => 'onPreSerialize'];
+        yield ['event' => Events::POST_SERIALIZE, 'method' => 'onPostSerialize'];
     }
 
     /**
@@ -90,7 +90,7 @@ class JmsSerializerSubscriber implements EventSubscriberInterface
     public function onPreSerialize(PreSerializeEvent $event): void
     {
         $object = $event->getObject();
-        if (!is_object($object)) {
+        if (!\is_object($object)) {
             return;
         }
 
@@ -103,14 +103,16 @@ class JmsSerializerSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $class = $this->getRealClass($object);
-        $reflectionClass = ClassUtils::newReflectionClass($class);
+        /** @var class-string<object> $className */
+        $className = ClassUtils::getClass($object);
+
         $classAnnotation = $this->annotationReader->getClassAnnotation(
-            $reflectionClass,
+            new \ReflectionClass($className),
             VichSerializableClass::class
         );
 
         if ($classAnnotation instanceof VichSerializableClass) {
+            $reflectionClass = ClassUtils::newReflectionClass(\get_class($object));
             $this->logger->debug(\sprintf(
                 'Found @VichSerializableClass annotation for the class "%s"',
                 $reflectionClass->getName()
@@ -142,7 +144,7 @@ class JmsSerializerSubscriber implements EventSubscriberInterface
 
                     if ($property->getValue($event->getObject())) {
                         $uri = $this->storage->resolveUri($object, $vichSerializableAnnotation->getField());
-                        if ($vichSerializableAnnotation->isIncludeHost() && false === \filter_var($uri, FILTER_VALIDATE_URL)) {
+                        if ($vichSerializableAnnotation->isIncludeHost() && false === \filter_var($uri, \FILTER_VALIDATE_URL)) {
                             $uri = $this->getHostUrl().$uri;
                         }
                     }
@@ -159,7 +161,7 @@ class JmsSerializerSubscriber implements EventSubscriberInterface
     public function onPostSerialize(ObjectEvent $event): void
     {
         $object = $event->getObject();
-        if (!is_object($object)) {
+        if (!\is_object($object)) {
             return;
         }
 
@@ -189,30 +191,15 @@ class JmsSerializerSubscriber implements EventSubscriberInterface
         $url = $scheme.'://'.$this->requestContext->getHost();
 
         $httpPort = $this->requestContext->getHttpPort();
-        if ('http' === $scheme && $httpPort && 80 !== $httpPort) {
+        if ('http' === $scheme && $httpPort && self::HTTP_PORT !== $httpPort) {
             return $url.':'.$httpPort;
         }
 
         $httpsPort = $this->requestContext->getHttpsPort();
-        if ('https' === $scheme && $httpsPort && 443 !== $httpsPort) {
+        if ('https' === $scheme && $httpsPort && self::HTTPS_PORT !== $httpsPort) {
             return $url.':'.$httpsPort;
         }
 
         return $url;
-    }
-
-    /**
-     * @param $object
-     * @return string
-     */
-    private function getRealClass($object): string
-    {
-        $class = ClassUtils::getClass($object);
-        if (false !== strpos($class, self::MONGO_PROXY_MARKER_ODM_V3)) {
-            $class = str_replace(self::MONGO_PROXY_MARKER_ODM_V3, Proxy::MARKER, $class);
-            $class = substr($class, 0, strripos($class, '\\'));
-            $class = ClassUtils::getRealClass($class);
-        }
-        return $class;
     }
 }
