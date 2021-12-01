@@ -1,4 +1,7 @@
-# VichUploaderSerializationBundle
+# VichUploaderSerializationBundle || FORK to add suport for MONGO_ODM_PROXIES of >V3 ODM
+
+Proxy_Marker changed in ODM >v3 from \__CG__ to \__PM__
+This fork adresses that change to take it into account when getting the real class of the object to serialize (since Proxies do NOT have Annotations)
 
 :package: Provides integration between [VichUploaderBundle](https://github.com/dustin10/VichUploaderBundle "VichUploaderBundle") and
 [JMSSerializerBundle](https://github.com/schmittjoh/JMSSerializerBundle "JMSSerializerBundle").
