@@ -35,6 +35,8 @@ use Vich\UploaderBundle\Storage\StorageInterface;
  */
 class JmsSerializerSubscriber implements EventSubscriberInterface
 {
+    public const MONGO_PROXY_MARKER_ODM_V3 = '__PM__';
+
     /** @var StorageInterface */
     private $storage;
 
@@ -101,13 +103,14 @@ class JmsSerializerSubscriber implements EventSubscriberInterface
             return;
         }
 
+        $class = $this->getRealClass($object);
+        $reflectionClass = ClassUtils::newReflectionClass($class);
         $classAnnotation = $this->annotationReader->getClassAnnotation(
-            new \ReflectionClass(ClassUtils::getClass($object)),
+            $reflectionClass,
             VichSerializableClass::class
         );
 
         if ($classAnnotation instanceof VichSerializableClass) {
-            $reflectionClass = ClassUtils::newReflectionClass(\get_class($object));
             $this->logger->debug(\sprintf(
                 'Found @VichSerializableClass annotation for the class "%s"',
                 $reflectionClass->getName()
@@ -196,5 +199,20 @@ class JmsSerializerSubscriber implements EventSubscriberInterface
         }
 
         return $url;
+    }
+
+    /**
+     * @param $object
+     * @return string
+     */
+    private function getRealClass($object): string
+    {
+        $class = ClassUtils::getClass($object);
+        if (false !== strpos($class, self::MONGO_PROXY_MARKER_ODM_V3)) {
+            $class = str_replace(self::MONGO_PROXY_MARKER_ODM_V3, Proxy::MARKER, $class);
+            $class = substr($class, 0, strripos($class, '\\'));
+            $class = ClassUtils::getRealClass($class);
+        }
+        return $class;
     }
 }
